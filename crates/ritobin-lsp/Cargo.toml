@@ -4,7 +4,7 @@ version = "0.1.5"
 edition = "2024"
 
 [dependencies]
-paths = {workspace = true, features = ["serde1"] }
+paths = { workspace = true, features = ["serde1"] }
 
 anyhow = "1.0.100"
 clap = { version = "4.5.54", features = ["derive"] }
@@ -13,10 +13,16 @@ log = "0.4.29"
 lsp-server = "0.7.9"
 lsp-types = { version = "=0.95.0", features = ["proposed"] }
 
-ltk_ritobin = { git = "https://github.com/LeagueToolkit/league-toolkit.git", branch = "alan/ritobin-rewrite", features = ["serde"] }
-ltk_meta = { git = "https://github.com/LeagueToolkit/league-toolkit.git", branch = "alan/ritobin-rewrite", features = ["serde"] }
+ltk_ritobin = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = [
+    "serde",
+] }
+ltk_meta = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = [
+    "serde",
+] }
 
-poro_hash = { git = "https://github.com/alanpq/poropack.git", features = ["fst"], branch = "main", version = "0.1.0" }
+poro_hash = { git = "https://github.com/alanpq/poropack.git", features = [
+    "fst",
+], branch = "main", version = "0.1.0" }
 
 rustc-hash = "2.1.1"
 serde = { version = "1.0.228", features = ["derive"] }
