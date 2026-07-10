@@ -1,10 +1,14 @@
+use std::num::IntErrorKind;
+
 use itertools::Itertools as _;
 use lsp_types::{
     Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location,
     PublishDiagnosticsParams,
     notification::{Notification as _, PublishDiagnostics},
 };
-use ltk_ritobin::{Cst, cst::FlatErrors, parse::ErrorKind, typecheck::visitor::DiagnosticWithSpan};
+use ltk_ritobin::{
+    Cst, RitoType, cst::FlatErrors, parse::ErrorKind, typecheck::visitor::DiagnosticWithSpan,
+};
 
 use crate::worker::Worker;
 
@@ -31,6 +35,27 @@ impl Worker {
                 message: format!("Type mismatch - expected {expected}, got {got}"),
                 ..Default::default()
             },
+            ltk_ritobin::typecheck::visitor::Diagnostic::ParseNumericError {
+                expected,
+                error,
+                span,
+            } => {
+                let expected = RitoType::simple(expected);
+                let error = match error {
+                    Some(IntErrorKind::Empty) => "cannot parse integer from empty literal",
+                    Some(IntErrorKind::InvalidDigit) => "invalid digit found in literal",
+                    Some(IntErrorKind::PosOverflow) => "number too large to fit in target type",
+                    Some(IntErrorKind::NegOverflow) => "number too small to fit in target type",
+                    Some(IntErrorKind::Zero) => "number would be zero",
+                    _ => "invalid literal",
+                };
+                Diagnostic {
+                    range: self.document.line_numbers.from_span(span),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!("Could not parse {expected} - {error}"),
+                    ..Default::default()
+                }
+            }
             ltk_ritobin::typecheck::visitor::Diagnostic::ShadowedEntry { shadowee, shadower } => {
                 Diagnostic {
                     range: self.document.line_numbers.from_span(d.span),
