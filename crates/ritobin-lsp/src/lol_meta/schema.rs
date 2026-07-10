@@ -1,5 +1,5 @@
 use ltk_meta::PropertyKind;
-use ltk_ritobin::typecheck::visitor::RitoType;
+use ltk_ritobin::RitoType;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use std::{

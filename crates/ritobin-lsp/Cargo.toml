@@ -13,12 +13,8 @@ log = "0.4.29"
 lsp-server = "0.7.9"
 lsp-types = { version = "=0.95.0", features = ["proposed"] }
 
-ltk_ritobin = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = [
-    "serde",
-] }
-ltk_meta = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = [
-    "serde",
-] }
+ltk_ritobin = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = ["serde"] }
+ltk_meta = { git = "https://github.com/LeagueToolkit/league-toolkit.git", features = ["serde"] }
 
 poro_hash = { git = "https://github.com/alanpq/poropack.git", features = [
     "fst",

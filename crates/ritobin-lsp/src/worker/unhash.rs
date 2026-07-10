@@ -1,8 +1,8 @@
 use lsp_types::{Range, TextEdit};
 use ltk_ritobin::{
     cst::{
-        Visitor,
-        visitor::{Visit, VisitorExt},
+        NodeId, TokenId, Visitor,
+        visitor::{Visit, VisitCtx, VisitorExt},
     },
     parse::{Span, TokenKind},
 };
@@ -12,11 +12,11 @@ use crate::{server::Hashes, worker::Worker};
 
 impl Worker {
     pub fn unhash(&self, _range: Option<Range>) -> anyhow::Result<Option<Vec<TextEdit>>> {
-        let Some((cst, _)) = self.bin.as_ref() else {
+        let Some(data) = self.data.as_ref() else {
             return Ok(None);
         };
 
-        let unhasher = Unhasher::new(&self.server.hashes, &self.document.text).walk(cst);
+        let unhasher = Unhasher::new(&self.server.hashes, &self.document.text).walk(&data.cst);
 
         Ok(Some(
             unhasher
@@ -48,21 +48,20 @@ impl<'a> Unhasher<'a> {
 }
 
 impl<'a> Visitor for Unhasher<'a> {
-    fn visit_token(
-        &mut self,
-        token: &ltk_ritobin::parse::Token,
-        context: &ltk_ritobin::Cst,
-    ) -> Visit {
+    fn visit_token(&mut self, ctx: &VisitCtx, token: TokenId, parent: NodeId) -> Visit {
+        let token = ctx.cst.token(token).unwrap();
+        let parent = ctx.cst.node(parent).unwrap();
+
         if token.kind != TokenKind::HexLit {
             return Visit::Continue;
         }
 
-        eprintln!("[unhash] {:?}", context.kind);
+        eprintln!("[unhash] {:?}", parent.kind);
         let Some(txt) = &self.txt[token.span].strip_prefix("0x") else {
             return Visit::Continue;
         };
 
-        let unhashed = match context.kind {
+        let unhashed = match parent.kind {
             ltk_ritobin::cst::Kind::EntryKey => {
                 let Some(k) = BinHash::from_str_radix(txt, 16).ok() else {
                     return Visit::Continue;

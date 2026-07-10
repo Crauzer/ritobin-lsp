@@ -1,7 +1,7 @@
 use ltk_ritobin::{
     cst::{
-        Cst, TreeKind,
-        visitor::{Visit, Visitor},
+        Cst, NodeId, TokenId, TreeKind,
+        visitor::{Visit, VisitCtx, Visitor},
     },
     parse::Token,
 };
@@ -27,7 +27,8 @@ impl NodeFinder {
 }
 
 impl Visitor for NodeFinder {
-    fn visit_token(&mut self, token: &Token, _context: &Cst) -> Visit {
+    fn visit_token(&mut self, ctx: &VisitCtx, token: TokenId, _parent: NodeId) -> Visit {
+        let token = ctx.cst.token(token).unwrap();
         if token.span.contains(self.offset) {
             self.found.replace(*token);
             return Visit::Stop;
@@ -36,11 +37,12 @@ impl Visitor for NodeFinder {
         Visit::Continue
     }
 
-    fn enter_tree(&mut self, tree: &Cst) -> Visit {
-        self.stack.push(tree.kind);
+    fn enter_tree(&mut self, ctx: &VisitCtx, node: NodeId) -> Visit {
+        let node = ctx.node(node).unwrap();
+        self.stack.push(node.kind);
         Visit::Continue
     }
-    fn exit_tree(&mut self, _tree: &Cst) -> Visit {
+    fn exit_tree(&mut self, _ctx: &VisitCtx, _node: NodeId) -> Visit {
         self.stack.pop();
         Visit::Continue
     }

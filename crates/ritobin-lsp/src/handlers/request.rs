@@ -108,7 +108,8 @@ pub async fn request(server: &Server, req: ServerRequest) -> Result<()> {
     let workers = server.workers.read().await;
     match workers.get(&uri) {
         Some(worker) => {
-            let _ = worker.tx.send(msg).await;
+            // tracing::debug!(?uri, "found worker.");
+            worker.tx.send(msg).await.unwrap();
         }
         None => {
             server.send_err(

@@ -133,9 +133,9 @@ checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
 
 [[package]]
 name = "bumpalo"
-version = "3.20.2"
+version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
+checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bytecount"
@@ -984,6 +984,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "imara-diff"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f01d462f766df78ab820dd06f5eb700233c51f0f4c2e846520eaf4ba6aa5c5c"
+dependencies = [
+ "hashbrown 0.15.5",
+ "memchr",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1189,16 +1199,18 @@ checksum = "3a0081deb694867c5ca11658f3df01425ae4181bdf5c6fbdc5fb1818fa0b52e5"
 
 [[package]]
 name = "ltk_hash"
-version = "0.2.6"
-source = "git+https://github.com/LeagueToolkit/league-toolkit.git#6f43ec0d3d9e05547245eea8d3f74188fee30ef9"
+version = "0.3.0"
+source = "git+https://github.com/LeagueToolkit/league-toolkit.git#2b9c17e73885b2b5401d8b8675680d7fb5d10a72"
 dependencies = [
+ "byteorder",
+ "serde",
  "xxhash-rust",
 ]
 
 [[package]]
 name = "ltk_io_ext"
 version = "0.4.3"
-source = "git+https://github.com/LeagueToolkit/league-toolkit.git#6f43ec0d3d9e05547245eea8d3f74188fee30ef9"
+source = "git+https://github.com/LeagueToolkit/league-toolkit.git#2b9c17e73885b2b5401d8b8675680d7fb5d10a72"
 dependencies = [
  "byteorder",
  "glam",
@@ -1208,14 +1220,15 @@ dependencies = [
 
 [[package]]
 name = "ltk_meta"
-version = "0.5.1"
-source = "git+https://github.com/LeagueToolkit/league-toolkit.git#6f43ec0d3d9e05547245eea8d3f74188fee30ef9"
+version = "0.6.0"
+source = "git+https://github.com/LeagueToolkit/league-toolkit.git#2b9c17e73885b2b5401d8b8675680d7fb5d10a72"
 dependencies = [
  "byteorder",
  "enum_dispatch",
  "glam",
  "indexmap 2.13.0",
  "log",
+ "ltk_hash 0.3.0",
  "ltk_io_ext",
  "ltk_primitives",
  "miette",
@@ -1228,7 +1241,7 @@ dependencies = [
 [[package]]
 name = "ltk_primitives"
 version = "0.3.4"
-source = "git+https://github.com/LeagueToolkit/league-toolkit.git#6f43ec0d3d9e05547245eea8d3f74188fee30ef9"
+source = "git+https://github.com/LeagueToolkit/league-toolkit.git#2b9c17e73885b2b5401d8b8675680d7fb5d10a72"
 dependencies = [
  "byteorder",
  "glam",
@@ -1238,12 +1251,12 @@ dependencies = [
 
 [[package]]
 name = "ltk_ritobin"
-version = "0.3.0"
-source = "git+https://github.com/LeagueToolkit/league-toolkit.git#6f43ec0d3d9e05547245eea8d3f74188fee30ef9"
+version = "0.4.0"
+source = "git+https://github.com/LeagueToolkit/league-toolkit.git#2b9c17e73885b2b5401d8b8675680d7fb5d10a72"
 dependencies = [
  "glam",
  "indexmap 2.13.0",
- "ltk_hash 0.2.6",
+ "ltk_hash 0.3.0",
  "ltk_meta",
  "ltk_primitives",
  "miette",
@@ -1251,6 +1264,7 @@ dependencies = [
  "nom_locate",
  "salsa",
  "serde",
+ "smallvec",
  "thiserror 1.0.69",
  "xxhash-rust",
 ]
@@ -1738,6 +1752,7 @@ dependencies = [
  "directories-next",
  "fst",
  "futures",
+ "imara-diff",
  "itertools",
  "log",
  "lsp-server",
@@ -1754,7 +1769,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "similar",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2087,12 +2101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "similar"
-version = "2.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
-
-[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2100,9 +2108,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "smallvec"
-version = "1.15.1"
+version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "socket2"

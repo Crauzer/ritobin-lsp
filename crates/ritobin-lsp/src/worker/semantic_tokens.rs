@@ -1,6 +1,9 @@
 use lsp_types::{Position, Range};
 use ltk_ritobin::{
-    cst::{Cst, TreeKind, Visitor, visitor::Visit},
+    cst::{
+        Cst, NodeId, TokenId, TreeKind, Visitor,
+        visitor::{Visit, VisitCtx},
+    },
     parse::{Span, Token, TokenKind},
 };
 use ritobin_lsp::line_ends::LineNumbers;
@@ -19,7 +22,9 @@ pub struct SemanticVisitor<'a> {
 }
 
 impl Visitor for SemanticVisitor<'_> {
-    fn enter_tree(&mut self, tree: &Cst) -> Visit {
+    fn enter_tree(&mut self, ctx: &VisitCtx, node: NodeId) -> Visit {
+        let tree = ctx.cst.node(node).unwrap();
+
         if matches!(tree.kind, TreeKind::ErrorTree) {
             return Visit::Continue;
         }
@@ -27,14 +32,18 @@ impl Visitor for SemanticVisitor<'_> {
         Visit::Continue
     }
 
-    fn exit_tree(&mut self, tree: &Cst) -> Visit {
+    fn exit_tree(&mut self, ctx: &VisitCtx, node: NodeId) -> Visit {
+        let tree = ctx.cst.node(node).unwrap();
+
         if matches!(tree.kind, TreeKind::ErrorTree) {
             return Visit::Continue;
         }
         self.stack.pop();
         Visit::Continue
     }
-    fn visit_token(&mut self, token: &Token, _context: &Cst) -> Visit {
+    fn visit_token(&mut self, ctx: &VisitCtx, token: TokenId, parent: NodeId) -> Visit {
+        let token = ctx.cst.token(token).unwrap();
+
         if let Some(range) = self.range
             && !token.span.intersects(&range)
         {

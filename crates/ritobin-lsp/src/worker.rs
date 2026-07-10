@@ -14,11 +14,12 @@ use ltk_hash::fnv1a;
 use ltk_ritobin::{
     Cst,
     cst::{
-        Kind as TreeKind, Visitor,
-        visitor::{Visit, VisitorExt as _},
+        Kind as TreeKind, NodeId, TokenId, Visitor,
+        visitor::{Visit, VisitCtx, VisitorExt as _},
     },
     parse::{Span, Token},
     print::PrintConfig,
+    typecheck::visitor::DiagnosticWithSpan,
 };
 use poro_hash::BinHash;
 use ritobin_lsp::cst_ext::CstExt as _;
@@ -82,10 +83,24 @@ pub struct WorkerHandle {
     handle: JoinHandle<()>,
 }
 
+struct ParseData {
+    cst: Cst,
+    bin: ltk_meta::Bin,
+    errors: Vec<DiagnosticWithSpan>,
+}
+
+impl ParseData {
+    pub fn parse(text: &str) -> Self {
+        let cst = Cst::parse(text);
+        let (bin, errors) = cst.build_bin(text);
+        Self { cst, bin, errors }
+    }
+}
+
 pub struct Worker {
     rx: mpsc::Receiver<Message>,
     document: Document,
-    bin: Option<(Cst, ltk_meta::Bin)>,
+    data: Option<ParseData>,
     server: Arc<Server>,
 }
 
@@ -95,10 +110,11 @@ impl Worker {
         WorkerHandle {
             tx,
             handle: tokio::spawn(async move {
+                // tracing::debug!("[worker] '{uri}' spawning...");
                 let mut worker = Self {
                     rx,
-                    bin: None,
                     document: Document::new(uri, version, text),
+                    data: None,
                     server,
                 };
                 worker.update();
@@ -111,13 +127,14 @@ impl Worker {
     }
 
     fn update(&mut self) {
-        let cst = Cst::parse(&self.document.text);
-        let (bin, errors) = cst.build_bin(&self.document.text);
-        let _ = self.publish_parse_errors(&cst, errors);
-        self.bin.replace((cst, bin));
+        tracing::debug!("[worker] '{}' update", self.document.uri);
+        let mut data = ParseData::parse(&self.document.text);
+        let _ = self.publish_parse_errors(&data.cst, data.errors.drain(..));
+        self.data.replace(data);
     }
 
     pub async fn service(mut self) -> anyhow::Result<()> {
+        tracing::debug!("[worker] '{}' started", self.document.uri);
         while let Some(req) = self.rx.recv().await {
             // TODO: propagate err to lsp client instead of killing worker
             tracing::debug!("[worker] got req: {req:#?}");
@@ -165,11 +182,13 @@ impl Worker {
                     partial_result_params,
                     range,
                 } => {
+                    tracing::info!("semantic token request for {id}");
                     if let Some(res) = self.semantic_tokens(
                         work_done_progress_params,
                         partial_result_params,
                         range,
                     )? {
+                        tracing::info!("semantic token request {id} complete");
                         let _ = self.server.send_ok(id, &res);
                     }
                 }
@@ -189,7 +208,7 @@ impl Worker {
         range: Option<Range>,
     ) -> anyhow::Result<Option<SemanticTokens>> {
         let doc = &self.document;
-        let Some((cst, _)) = self.bin.as_ref() else {
+        let Some(data) = self.data.as_ref() else {
             return Ok(None);
         };
 
@@ -203,14 +222,14 @@ impl Worker {
                 .map(|range| doc.line_numbers.from_range(range)),
             builder,
         }
-        .walk(cst);
+        .walk(&data.cst);
 
         Ok(Some(visitor.builder.build()))
     }
 
     fn complete(&self, req: CompletionRequest) -> anyhow::Result<Option<CompletionResponse>> {
         let doc = &self.document;
-        let Some((cst, _bin)) = self.bin.as_ref() else {
+        let Some(data) = self.data.as_ref() else {
             return Ok(None);
         };
 
@@ -221,7 +240,7 @@ impl Worker {
             )),
             doc.text.clone(),
         )
-        .walk(cst);
+        .walk(&data.cst);
 
         let classes = self.server.meta.classes.read();
         let Some((name, class)) = class
@@ -273,12 +292,12 @@ impl Worker {
     ) -> anyhow::Result<Option<Hover>> {
         let pos = position.start();
         let doc = &self.document;
-        let Some((cst, _bin)) = self.bin.as_ref() else {
+        let Some(data) = self.data.as_ref() else {
             return Ok(None);
         };
 
         let finder =
-            ClassFinder::new(doc.line_numbers.from_position(pos), doc.text.clone()).walk(cst);
+            ClassFinder::new(doc.line_numbers.from_position(pos), doc.text.clone()).walk(&data.cst);
         let classes = self.server.meta.classes.read();
         let class_name = finder
             .class_stack
@@ -333,7 +352,7 @@ impl Worker {
                                             .types
                                             .as_ref()
                                             .and_then(|h| h.hashes.get(&BinHash(*hash)))
-                                            .map(|s| s.as_str())
+                                            .map(|s: &String| s.as_str())
                                             .unwrap_or("??");
                                         writeln!(
                                             str,
@@ -351,7 +370,8 @@ impl Worker {
                             None => format!("*Unknown class `{class_name}`*"),
                         },
                         _ => {
-                            match cst
+                            match data
+                                .cst
                                 .find_node(doc.line_numbers.byte_index(pos.line, pos.character + 1))
                             {
                                 Some((node, tok)) => {
@@ -366,7 +386,9 @@ impl Worker {
             }
             None => MarkupContent {
                 kind: lsp_types::MarkupKind::PlainText,
-                value: match cst.find_node(doc.line_numbers.byte_index(pos.line, pos.character + 1))
+                value: match data
+                    .cst
+                    .find_node(doc.line_numbers.byte_index(pos.line, pos.character + 1))
                 {
                     Some((node, tok)) => {
                         let txt = &doc.text[tok.span.start as _..tok.span.end as _];
@@ -406,12 +428,12 @@ impl Worker {
             tracing::error!("file too big to format!");
             return Ok(None);
         }
-        let Some((cst, _)) = self.bin.as_ref() else {
+        let Some(data) = self.data.as_ref() else {
             return Ok(None);
         };
         let mut formatted = String::new();
         ltk_ritobin::print::CstPrinter::new(&doc.text, &mut formatted, PrintConfig::default())
-            .print(cst)
+            .print(&data.cst)
             .unwrap();
 
         Ok(Some(diff_to_textedits(&doc.text, &formatted)))
@@ -485,21 +507,24 @@ impl ClassFinder {
 }
 
 impl Visitor for ClassFinder {
-    fn visit_token(&mut self, token: &Token, context: &Cst) -> Visit {
+    fn visit_token(&mut self, ctx: &VisitCtx, token: TokenId, parent: NodeId) -> Visit {
+        let token = ctx.cst.token(token).unwrap();
         if token.span.contains(self.offset) {
-            self.found_token.replace((*token, context.kind));
+            let parent = ctx.node(parent).unwrap();
+            self.found_token.replace((*token, parent.kind));
             return Visit::Stop;
         }
 
         Visit::Continue
     }
 
-    fn enter_tree(&mut self, tree: &Cst) -> Visit {
+    fn enter_tree(&mut self, ctx: &VisitCtx, node: NodeId) -> Visit {
+        let tree = ctx.node(node).unwrap();
         if tree.span.start > self.offset {
             return Visit::Stop;
         }
         if tree.kind == TreeKind::Class
-            && let Some(c) = tree.children.first().map(|c| c.span())
+            && let Some(c) = tree.children.get(ctx.cst).first().map(|c| c.span(ctx.cst))
         {
             self.class_stack.push((self.stack.len(), c));
             // eprintln!("-> {}: {:?}", self.stack.len(), &self.text.as_str()[c]);
@@ -507,7 +532,8 @@ impl Visitor for ClassFinder {
         self.stack.push(tree.kind);
         Visit::Continue
     }
-    fn exit_tree(&mut self, tree: &Cst) -> Visit {
+    fn exit_tree(&mut self, ctx: &VisitCtx, node: NodeId) -> Visit {
+        let tree = ctx.node(node).unwrap();
         if tree.span.end > self.offset {
             return Visit::Stop;
         }

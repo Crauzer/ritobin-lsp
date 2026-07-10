@@ -107,11 +107,10 @@ impl Worker {
             })
             .collect_vec();
 
-        let mut parse_errors = FlatErrors::new();
-        cst.walk(&mut parse_errors);
-        let parse_errors = parse_errors.into_errors();
+        // let mut parse_errors = FlatErrors::new();
+        // cst.walk(&mut parse_errors);
 
-        diagnostics.extend(parse_errors.into_iter().map(|err| Diagnostic {
+        diagnostics.extend(cst.errors.iter().map(|err| Diagnostic {
             range: self.document.line_numbers.from_span(err.span),
             severity: Some(DiagnosticSeverity::ERROR),
             code: None,
