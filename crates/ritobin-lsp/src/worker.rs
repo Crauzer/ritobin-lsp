@@ -1,9 +1,6 @@
-use std::{
-    fmt::Write as _,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{fmt::Write as _, sync::Arc};
 
+use imara_diff::{Algorithm, Diff, InternedInput};
 use lsp_server::RequestId;
 use lsp_types::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, FormattingOptions,
@@ -23,7 +20,6 @@ use ltk_ritobin::{
 };
 use poro_hash::BinHash;
 use ritobin_lsp::cst_ext::CstExt as _;
-use similar::TextDiff;
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::{
@@ -137,7 +133,6 @@ impl Worker {
         tracing::debug!("[worker] '{}' started", self.document.uri);
         while let Some(req) = self.rx.recv().await {
             // TODO: propagate err to lsp client instead of killing worker
-            tracing::debug!("[worker] got req: {req:#?}");
             match req {
                 Message::UnhashRequest { id, range } => {
                     let _ = self
@@ -182,13 +177,11 @@ impl Worker {
                     partial_result_params,
                     range,
                 } => {
-                    tracing::info!("semantic token request for {id}");
                     if let Some(res) = self.semantic_tokens(
                         work_done_progress_params,
                         partial_result_params,
                         range,
                     )? {
-                        tracing::info!("semantic token request {id} complete");
                         let _ = self.server.send_ok(id, &res);
                     }
                 }
@@ -445,45 +438,21 @@ fn diff_to_textedits(original: &str, formatted: &str) -> Vec<TextEdit> {
         return Vec::new();
     }
 
-    let diff = TextDiff::configure()
-        .algorithm(similar::Algorithm::Lcs)
-        .deadline(Instant::now() + Duration::from_secs(1))
-        .diff_lines(original, formatted);
-    let mut edits = Vec::new();
+    let input = InternedInput::new(original, formatted);
+    let mut diff = Diff::compute(Algorithm::Myers, &input);
+    diff.postprocess_lines(&input);
 
-    for group in diff.grouped_ops(3) {
-        let mut old_start = usize::MAX;
-        let mut old_end = 0;
-        let mut new_start = usize::MAX;
-        let mut new_end = 0;
-
-        for op in group {
-            let o = op.old_range();
-            let n = op.new_range();
-
-            old_start = old_start.min(o.start);
-            old_end = old_end.max(o.end);
-
-            new_start = new_start.min(n.start);
-            new_end = new_end.max(n.end);
-        }
-
-        let fmt_lines: Vec<&str> = formatted.lines().collect();
-        let replacement = fmt_lines[new_start..new_end]
-            .iter()
-            .map(|l| format!("{l}\n"))
-            .collect::<String>();
-
-        edits.push(TextEdit {
+    diff.hunks()
+        .map(|hunk| TextEdit {
             range: Range {
-                start: Position::new(old_start as u32, 0),
-                end: Position::new(old_end as u32, 0),
+                start: Position::new(hunk.before.start, 0),
+                end: Position::new(hunk.before.end, 0),
             },
-            new_text: replacement,
-        });
-    }
-
-    edits
+            new_text: (hunk.after.start..hunk.after.end)
+                .map(|idx| input.interner[input.after[idx as usize]])
+                .collect(),
+        })
+        .collect()
 }
 
 struct ClassFinder {

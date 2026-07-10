@@ -35,7 +35,6 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
 ] }
 itertools = "0.14.0"
 tokio = { version = "1.50.0", features = ["full"] }
-similar = "2.7.0"
 directories-next = "2.0.0"
 dashmap = { version = "6.1.0", features = ["serde"] }
 ltk_hash = "0.2.5"
@@ -45,3 +44,4 @@ fst = "0.4.7"
 reqwest = { version = "0.13.2", features = ["json", "stream"] }
 thiserror = "2.0.18"
 futures = "0.3.32"
+imara-diff = "0.2.0"
