@@ -7,6 +7,7 @@ import {
   RitobinBinDecorationProvider,
   RitobinBinFs,
 } from "./bin_fs";
+import { registerBinReadonlyFlow } from "./bin_readonly";
 import * as commands from "./commands";
 import { type CommandFactory, Ctx, fetchWorkspace } from "./ctx";
 import * as diagnostics from "./diagnostics";
@@ -94,9 +95,16 @@ async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
     { language: "ritobin", scheme: BIN_SCHEME },
   );
   binStatus.name = "Ritobin Bin Editor";
-  binStatus.text = "$(file-binary) Deserialized .bin";
-  binStatus.detail = "Virtual view of the binary - saving converts it back";
+  binStatus.text = "$(file-binary) .bin (read-only)";
+  binStatus.detail =
+    "Deserialized League .bin in read-only mode; enable write-back to save changes";
+  binStatus.command = {
+    title: "Enable write-back",
+    command: "ritobin-lsp.enableBinWriteBack",
+  };
   ctx.pushExtCleanup(binStatus);
+
+  registerBinReadonlyFlow(ctx, binFs);
 
   const diagnosticProvider = new diagnostics.TextDocumentProvider(ctx);
   ctx.pushExtCleanup(
