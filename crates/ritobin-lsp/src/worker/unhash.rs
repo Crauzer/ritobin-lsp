@@ -62,7 +62,7 @@ impl<'a> Visitor for Unhasher<'a> {
             return Visit::Continue;
         }
 
-        eprintln!("[unhash] {:?}", parent.kind);
+        // eprintln!("[unhash] {:?}", parent.kind);
         let Some(txt) = &self.txt[token.span].strip_prefix("0x") else {
             return Visit::Continue;
         };
@@ -89,7 +89,7 @@ impl<'a> Visitor for Unhasher<'a> {
         if let Some(unhashed) = unhashed.as_ref() {
             self.edits.push((token.span, unhashed.to_string()));
         }
-        eprintln!("[unhash] -> {unhashed:?}");
+        // eprintln!("[unhash] -> {unhashed:?}");
 
         Visit::Continue
     }
