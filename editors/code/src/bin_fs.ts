@@ -41,7 +41,7 @@ export class RitobinBinDecorationProvider
 
     return new vscode.FileDecoration(
       "⇄",
-      "Deserialized League .bin - saving converts it back into the binary",
+      "Read-only League .bin - save as .ritobin, or enable write-back to convert changes back into the binary",
       new vscode.ThemeColor("charts.blue"),
     );
   }
@@ -55,15 +55,24 @@ interface CacheEntry {
 }
 
 /**
- * FileSystemProvider that exposes League `.bin` files as editable ritobin
- * text. Reads deserialize via the `ritobin-lsp/deserializeBin` request; saves
- * convert back to the binary via `ritobin-lsp/serializeBin`.
+ * FileSystemProvider that exposes League `.bin` files as ritobin text. Reads
+ * deserialize via the `ritobin-lsp/deserializeBin` request; saves convert back
+ * to the binary via `ritobin-lsp/serializeBin`.
+ *
+ * Bins open read-only by default so casual viewing never risks clobbering the
+ * binary. Write-back is opt-in per open document via `enableWriteBack` (see
+ * `bin_readonly.ts`) and is forgotten when the document closes - reopening the
+ * `.bin` is read-only again.
  *
  * External modification of the `.bin` while its virtual document is open is
  * not detected (`watch` is a no-op) - the text goes stale until reopen.
  */
 export class RitobinBinFs implements vscode.FileSystemProvider {
   private readonly cache = new Map<string, CacheEntry>();
+
+  /** Virtual URIs the user has opted into saving back to the `.bin`. */
+  private readonly writeBack = new Set<string>();
+
   private readonly emitter = new vscode.EventEmitter<
     vscode.FileChangeEvent[]
   >();
@@ -72,13 +81,35 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
   constructor(private readonly ctx: Ctx) {}
 
   /**
-   * Evict the cache once the virtual document closes, so reopening
-   * re-deserializes and picks up external changes to the `.bin`.
+   * Evict the cache and forget any write-back opt-in once the virtual
+   * document closes, so reopening re-deserializes read-only and picks up
+   * external changes to the `.bin`.
    */
   handleDidCloseTextDocument(doc: vscode.TextDocument) {
     if (doc.uri.scheme === BIN_SCHEME) {
       this.cache.delete(doc.uri.toString());
+      this.writeBack.delete(doc.uri.toString());
     }
+  }
+
+  /** Whether `uri` deserialized from a read-only PTCH override bin. */
+  isOverride(uri: vscode.Uri): boolean | undefined {
+    return this.cache.get(uri.toString())?.isOverride;
+  }
+
+  /**
+   * Opt `uri` into write-back for the rest of this document's lifetime, then
+   * re-stat so VS Code drops the read-only lock on the open editor.
+   * No-op for override bins, which can never be written back.
+   */
+  enableWriteBack(uri: vscode.Uri): void {
+    const key = uri.toString();
+    if (this.cache.get(key)?.isOverride || this.writeBack.has(key)) {
+      return;
+    }
+
+    this.writeBack.add(key);
+    this.emitter.fire([{ type: vscode.FileChangeType.Changed, uri }]);
   }
 
   private async ensureLoaded(uri: vscode.Uri): Promise<CacheEntry> {
@@ -114,15 +145,16 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
 
   async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
     const entry = await this.ensureLoaded(uri);
+    // Read-only by default; PTCH override bins can never be written back.
+    // Only documents the user explicitly opted into via `enableWriteBack`
+    // become writable, and only until they are closed.
+    const writable = !entry.isOverride && this.writeBack.has(uri.toString());
     return {
       type: vscode.FileType.File,
       ctime: entry.mtime,
       mtime: entry.mtime,
       size: entry.size,
-      // PTCH override bins cannot be written back yet - open them read-only.
-      permissions: entry.isOverride
-        ? vscode.FilePermission.Readonly
-        : undefined,
+      permissions: writable ? undefined : vscode.FilePermission.Readonly,
     };
   }
 
@@ -137,7 +169,10 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
     _options: { readonly create: boolean; readonly overwrite: boolean },
   ): Promise<void> {
     const entry = await this.ensureLoaded(uri);
-    if (entry.isOverride) {
+    // Refuse writes to read-only documents (override bins, or ones the user
+    // hasn't opted into write-back for). The editor is read-only in that
+    // state, so this is defense-in-depth against programmatic writes.
+    if (entry.isOverride || !this.writeBack.has(uri.toString())) {
       throw vscode.FileSystemError.NoPermissions(uri);
     }
 

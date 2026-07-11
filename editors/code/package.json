@@ -132,6 +132,16 @@
                 "category": "ritobin-lsp"
             },
             {
+                "command": "ritobin-lsp.saveBinAsRitobin",
+                "title": "Save .bin as Ritobin",
+                "category": "ritobin-lsp"
+            },
+            {
+                "command": "ritobin-lsp.enableBinWriteBack",
+                "title": "Enable .bin Write-back",
+                "category": "ritobin-lsp"
+            },
+            {
                 "command": "ritobin-lsp.installExplorerIntegration",
                 "title": "Install Windows Explorer Integration",
                 "category": "ritobin-lsp"
@@ -436,6 +446,14 @@
                 {
                     "command": "ritobin-lsp.toggleLSPLogs",
                     "when": "inRitobinProject"
+                },
+                {
+                    "command": "ritobin-lsp.saveBinAsRitobin",
+                    "when": "resourceScheme == ritobin-bin"
+                },
+                {
+                    "command": "ritobin-lsp.enableBinWriteBack",
+                    "when": "resourceScheme == ritobin-bin"
                 },
                 {
                     "command": "ritobin-lsp.installExplorerIntegration",
