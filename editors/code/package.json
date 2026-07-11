@@ -32,6 +32,7 @@
     "scripts": {
         "vscode:prepublish": "npm run build-base -- --minify",
         "package": "vsce package -o ritobin-lsp.vsix",
+        "package:full": "node scripts/package-full.mjs",
         "build-base": "esbuild ./src/main.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node --target=node20",
         "build": "npm run build-base -- --sourcemap",
         "watch": "npm run build-base -- --sourcemap --watch",
@@ -62,7 +63,8 @@
         "typescript-eslint": "^8.25.0"
     },
     "activationEvents": [
-        "onLanguage:ritobin"
+        "onLanguage:ritobin",
+        "onStartupFinished"
     ],
     "main": "./out/main",
     "contributes": {
@@ -115,6 +117,16 @@
             {
                 "command": "ritobin-lsp.toggleLSPLogs",
                 "title": "Toggle LSP Logs",
+                "category": "ritobin-lsp"
+            },
+            {
+                "command": "ritobin-lsp.installExplorerIntegration",
+                "title": "Install Windows Explorer Integration",
+                "category": "ritobin-lsp"
+            },
+            {
+                "command": "ritobin-lsp.uninstallExplorerIntegration",
+                "title": "Uninstall Windows Explorer Integration",
                 "category": "ritobin-lsp"
             }
         ],
@@ -412,6 +424,14 @@
                 {
                     "command": "ritobin-lsp.toggleLSPLogs",
                     "when": "inRitobinProject"
+                },
+                {
+                    "command": "ritobin-lsp.installExplorerIntegration",
+                    "when": "isWindows"
+                },
+                {
+                    "command": "ritobin-lsp.uninstallExplorerIntegration",
+                    "when": "isWindows"
                 }
             ],
             "editor/context": [],
