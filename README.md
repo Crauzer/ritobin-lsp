@@ -16,12 +16,33 @@ If you're using VS Code, the extension already bundles a copy of the `ritobin-ls
 > 
 > See VS Code's page for installation instructions [here](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace#_install-from-a-vsix)
 
+# Usage
+
+## VS Code
+Just open a `.rito` file or manually set the language to `Ritobin`!
+
+> [!IMPORTANT]
+> `.py` files are **not** recognised as ritobin, to not conflict with actual Python files. Rename your files to `.rito`.
+
+For formatting - you can manually run the "Format Document" command, or set up format on save: 
+```jsonc
+// settings.json
+{
+    "editor.formatOnSave": true
+}
+```
+
+## Vim/Emacs/etc.
+
+Configure it as you would for any other language server :)
+
 # Features
 - [x] Semantic tokens (syntax highlighting)
 - [x] Formatting
 - [x] Diagnostics
 - [x] File unhash command
-- [ ] Automatic hash updates
+- [x] Automatic hashtable updates (with [Mimir](https://github.com/LeagueToolkit/Mimir))
+- [ ] Direct opening of `.bin` files ([#32](https://github.com/alanpq/ritobin-lsp/pull/32))
 - [ ] [lol-meta-classes](https://github.com/LeagueToolkit/lol-meta-classes) integration
     - [x] Class property auto-complete
     - [ ] Property value auto-complete
@@ -31,4 +52,7 @@ If you're using VS Code, the extension already bundles a copy of the `ritobin-ls
 - [ ] [LoL Meta Wiki](https://meta-wiki.leaguetoolkit.dev/) integration
     - [x] Links to wiki in hover information
     - [ ] Class/property documentation
+- [ ] [modpkg](https://github.com/LeagueToolkit/league-mod/tree/main/crates/ltk_modpkg) support
+    - [ ] Linked bin & bin dependency resolution & autocomplete
+    - [ ] Asset resolution & autocomplete
 - [ ] And much more to come :3
