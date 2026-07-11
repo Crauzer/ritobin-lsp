@@ -109,6 +109,42 @@ pub struct ExpandedMacro {
     pub expansion: String,
 }
 
+pub enum DeserializeBin {}
+
+impl Request for DeserializeBin {
+    type Params = DeserializeBinParams;
+    type Result = DeserializeBinResult;
+    const METHOD: &'static str = "ritobin-lsp/deserializeBin";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeserializeBinParams {
+    pub bin_path: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeserializeBinResult {
+    pub text: String,
+    pub is_override: bool,
+}
+
+pub enum SerializeBin {}
+
+impl Request for SerializeBin {
+    type Params = SerializeBinParams;
+    type Result = ();
+    const METHOD: &'static str = "ritobin-lsp/serializeBin";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SerializeBinParams {
+    pub bin_path: String,
+    pub text: String,
+}
+
 pub enum ViewRecursiveMemoryLayout {}
 
 impl Request for ViewRecursiveMemoryLayout {

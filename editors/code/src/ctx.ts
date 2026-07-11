@@ -98,6 +98,10 @@ export class Ctx implements RustAnalyzerExtensionApi {
     return this._client;
   }
 
+  get persistentState(): PersistentState {
+    return this.state;
+  }
+
   constructor(
     readonly extCtx: vscode.ExtensionContext,
     commandFactories: Record<string, CommandFactory>,
@@ -175,8 +179,11 @@ export class Ctx implements RustAnalyzerExtensionApi {
     }
   }
 
-  private async getOrCreateClient() {
-    if (this.workspace.kind === "Empty") {
+  private async getOrCreateClient(force = false) {
+    // The Empty-workspace bailout is skipped when forced: the user explicitly
+    // opened a .bin (possibly in a cold folderless window), so the server is
+    // needed regardless of workspace state.
+    if (this.workspace.kind === "Empty" && !force) {
       return;
     }
 
@@ -279,14 +286,43 @@ export class Ctx implements RustAnalyzerExtensionApi {
     });
   }
 
-  async start() {
+  async start(force = false) {
     log.info("Starting language client");
-    const client = await this.getOrCreateClient();
+    const client = await this.getOrCreateClient(force);
     if (!client) {
       return;
     }
     await client.start();
     this.updateCommands();
+  }
+
+  private clientReadyPromise: Promise<lc.LanguageClient> | undefined;
+
+  /**
+   * Returns a running client, force-starting the server if necessary. Used by
+   * the ritobin-bin virtual filesystem, where the user has explicitly opened
+   * a .bin file - so this bypasses the Empty-workspace bailout and the
+   * `initializeStopped` setting.
+   */
+  async ensureClientReady(): Promise<lc.LanguageClient> {
+    if (this._client?.isRunning()) {
+      return this._client;
+    }
+    if (!this.clientReadyPromise) {
+      log.info("Force-starting language client for .bin deserialization");
+      this.clientReadyPromise = this.start(true)
+        .then(() => {
+          const client = this._client;
+          if (!client?.isRunning()) {
+            throw new Error("the ritobin-lsp server failed to start");
+          }
+          return client;
+        })
+        .finally(() => {
+          this.clientReadyPromise = undefined;
+        });
+    }
+    return this.clientReadyPromise;
   }
 
   async restart() {

@@ -1,11 +1,23 @@
 import * as vscode from "vscode";
 import * as lc from "vscode-languageclient/node";
 
+import { BIN_EDITOR_VIEW_TYPE, RitobinBinEditorProvider } from "./bin_editor";
+import {
+  BIN_SCHEME,
+  RitobinBinDecorationProvider,
+  RitobinBinFs,
+} from "./bin_fs";
 import * as commands from "./commands";
 import { type CommandFactory, Ctx, fetchWorkspace } from "./ctx";
 import * as diagnostics from "./diagnostics";
+import {
+  installExplorerIntegration,
+  maybePromptExplorerIntegration,
+  uninstallExplorerIntegration,
+} from "./explorer_integration";
+import { guard } from "./ide_utils";
 // import { activateTaskProvider } from "./tasks";
-import { log, setContextValue } from "./util";
+import { isRitobinDocument, log, setContextValue } from "./util";
 // import { initializeDebugSessionTrackingAndRebuild } from "./debug";
 
 const RITOBIN_PROJECT_CONTEXT_NAME = "inRitobinProject";
@@ -50,6 +62,41 @@ async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
   if (ctx.workspace.kind === "Workspace Folder") {
     //     ctx.pushExtCleanup(activateTaskProvider(ctx.config));
   }
+
+  // Register the ritobin-bin virtual filesystem and the *.bin custom editor
+  // redirect before anything can open a virtual document (incl. hot-exit
+  // restore of dirty virtual docs).
+  const binFs = new RitobinBinFs(ctx);
+  ctx.pushExtCleanup(
+    vscode.workspace.registerFileSystemProvider(BIN_SCHEME, binFs, {
+      isCaseSensitive: false,
+    }),
+  );
+  vscode.workspace.onDidCloseTextDocument(
+    (doc) => binFs.handleDidCloseTextDocument(doc),
+    null,
+    ctx.subscriptions,
+  );
+  ctx.pushExtCleanup(
+    vscode.window.registerCustomEditorProvider(
+      BIN_EDITOR_VIEW_TYPE,
+      new RitobinBinEditorProvider(),
+      { supportsMultipleEditorsPerDocument: true },
+    ),
+  );
+  ctx.pushExtCleanup(
+    vscode.window.registerFileDecorationProvider(
+      new RitobinBinDecorationProvider(),
+    ),
+  );
+  const binStatus = vscode.languages.createLanguageStatusItem(
+    "ritobin-lsp.binEditorStatus",
+    { language: "ritobin", scheme: BIN_SCHEME },
+  );
+  binStatus.name = "Ritobin Bin Editor";
+  binStatus.text = "$(file-binary) Deserialized .bin";
+  binStatus.detail = "Virtual view of the binary - saving converts it back";
+  ctx.pushExtCleanup(binStatus);
 
   const diagnosticProvider = new diagnostics.TextDocumentProvider(ctx);
   ctx.pushExtCleanup(
@@ -127,12 +174,37 @@ async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
     ctx.setServerStatus({
       health: "stopped",
     });
-  } else {
+  } else if (vscode.workspace.textDocuments.some(isRitobinDocument)) {
     await ctx.start();
+  } else {
+    const lazyStart = vscode.workspace.onDidOpenTextDocument(async (doc) => {
+      if (isRitobinDocument(doc)) {
+        lazyStart.dispose();
+        await ctx.start();
+      }
+    });
+
+    ctx.pushExtCleanup(lazyStart);
   }
+
+  void maybePromptExplorerIntegration(ctx);
 
   return ctx;
 }
+
+const installExplorerIntegrationCommand = (ctx: Ctx) =>
+  guard("Explorer integration install", async () => {
+    if (await installExplorerIntegration()) {
+      await ctx.persistentState.updateExplorerIntegrationPrompt("installed");
+    }
+  });
+
+const uninstallExplorerIntegrationCommand = (ctx: Ctx) =>
+  guard("Explorer integration uninstall", async () => {
+    if (await uninstallExplorerIntegration()) {
+      await ctx.persistentState.updateExplorerIntegrationPrompt("dismissed");
+    }
+  });
 
 function createCommands(): Record<string, CommandFactory> {
   return {
@@ -169,6 +241,14 @@ function createCommands(): Record<string, CommandFactory> {
     },
     lspStatus: { enabled: commands.lspStatus },
     unhash: { enabled: commands.unhash },
+    installExplorerIntegration: {
+      enabled: installExplorerIntegrationCommand,
+      disabled: installExplorerIntegrationCommand,
+    },
+    uninstallExplorerIntegration: {
+      enabled: uninstallExplorerIntegrationCommand,
+      disabled: uninstallExplorerIntegrationCommand,
+    },
     matchingBrace: {
       enabled: (_) => async () => {},
       disabled: (_) => async () => {},

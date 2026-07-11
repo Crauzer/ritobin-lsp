@@ -1,8 +1,11 @@
+mod bin;
+
+use std::sync::Arc;
+
 use anyhow::Result;
-use itertools::Itertools;
 use lsp_server::Request as ServerRequest;
+use lsp_types::CompletionParams;
 use lsp_types::request::Request;
-use lsp_types::{CompletionParams, notification::Notification as _};
 use lsp_types::{
     DocumentFormattingParams, SemanticTokensParams, SemanticTokensRangeParams,
     request::{
@@ -11,12 +14,12 @@ use lsp_types::{
 };
 
 use crate::{
-    lsp::ext::{HoverParams, Unhash, UnhashParams},
+    lsp::ext::{DeserializeBin, HoverParams, SerializeBin, Unhash, UnhashParams},
     server::Server,
     worker::{self, CompletionRequest},
 };
 
-pub async fn request(server: &Server, req: ServerRequest) -> Result<()> {
+pub async fn request(server: &Arc<Server>, req: ServerRequest) -> Result<()> {
     // tracing::debug!(?req, "handle_request");
     let id = req.id.clone();
     let (uri, msg) = {
@@ -27,6 +30,14 @@ pub async fn request(server: &Server, req: ServerRequest) -> Result<()> {
             //         &lsp_types::GotoDefinitionResponse::Array(Vec::new()),
             //     )?;
             // }
+            DeserializeBin::METHOD => {
+                bin::handle_deserialize_bin(server, id, serde_json::from_value(req.params)?);
+                return Ok(());
+            }
+            SerializeBin::METHOD => {
+                bin::handle_serialize_bin(server, id, serde_json::from_value(req.params)?);
+                return Ok(());
+            }
             Unhash::METHOD => {
                 let p: UnhashParams = serde_json::from_value(req.params)?;
                 (

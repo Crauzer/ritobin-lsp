@@ -34,6 +34,19 @@ export const unhash = new lc.RequestType<UnhashParams, lc.TextEdit[], void>(
   "ritobin-lsp/unhash",
 );
 
+export const deserializeBin = new lc.RequestType<
+  DeserializeBinParams,
+  DeserializeBinResult,
+  void
+>("ritobin-lsp/deserializeBin");
+export type DeserializeBinParams = { binPath: string };
+export type DeserializeBinResult = { text: string; isOverride: boolean };
+
+export const serializeBin = new lc.RequestType<SerializeBinParams, null, void>(
+  "ritobin-lsp/serializeBin",
+);
+export type SerializeBinParams = { binPath: string; text: string };
+
 export const analyzerStatus = new lc.RequestType<
   AnalyzerStatusParams,
   string,

@@ -63,11 +63,23 @@
         "typescript-eslint": "^8.25.0"
     },
     "activationEvents": [
-        "onLanguage:ritobin",
-        "onStartupFinished"
+        "onStartupFinished",
+        "onFileSystem:ritobin-bin"
     ],
     "main": "./out/main",
     "contributes": {
+        "customEditors": [
+            {
+                "viewType": "ritobin-lsp.binEditor",
+                "displayName": "Ritobin Editor",
+                "selector": [
+                    {
+                        "filenamePattern": "*.bin"
+                    }
+                ],
+                "priority": "default"
+            }
+        ],
         "commands": [
             {
                 "command": "ritobin-lsp.onEnter",
