@@ -26,6 +26,7 @@ use crate::{config::Config, lsp::capabilities::server_capabilities};
 
 pub mod config;
 pub mod document;
+pub mod fs_ext;
 pub mod handlers;
 pub mod lol_meta;
 pub mod lsp;

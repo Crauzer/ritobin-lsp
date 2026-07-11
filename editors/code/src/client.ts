@@ -292,7 +292,10 @@ export async function createClient(
     },
   };
   const clientOptions: lc.LanguageClientOptions = {
-    documentSelector: [{ scheme: "file", language: "ritobin" }],
+    documentSelector: [
+      { scheme: "file", language: "ritobin" },
+      { scheme: "ritobin-bin", language: "ritobin" },
+    ],
     initializationOptions,
     diagnosticCollectionName: "rustc",
     traceOutputChannel,

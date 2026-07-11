@@ -129,4 +129,26 @@ impl Server {
         self.conn.sender.send(Message::Response(resp))?;
         Ok(())
     }
+
+    /// Runs `work` on the blocking thread pool and sends its outcome as the
+    /// response to `id`; a `String` error becomes a `RequestFailed` response
+    /// error. `method` labels the error log if sending the response fails.
+    pub fn respond_blocking<T, F>(self: &Arc<Self>, id: RequestId, method: &'static str, work: F)
+    where
+        T: serde::Serialize,
+        F: FnOnce() -> Result<T, String> + Send + 'static,
+    {
+        let server = self.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let sent = match work() {
+                Ok(res) => server.send_ok(id, &res),
+                Err(msg) => server.send_err(id, lsp_server::ErrorCode::RequestFailed, &msg),
+            };
+
+            if let Err(e) = sent {
+                tracing::error!("failed to send {method} response: {e:?}");
+            }
+        });
+    }
 }

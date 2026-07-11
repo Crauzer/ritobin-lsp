@@ -18,4 +18,19 @@ export class PersistentState {
     async updateServerVersion(value: string | undefined) {
         await this.globalState.update("serverVersion", value);
     }
+
+    /**
+     * Outcome of the one-time Windows Explorer integration prompt.
+     * `undefined` means the user hasn't answered yet (or answered "No",
+     * which asks again next session).
+     */
+    get explorerIntegrationPrompt(): "dismissed" | "installed" | undefined {
+        return this.globalState.get("explorerIntegrationPrompt");
+    }
+
+    async updateExplorerIntegrationPrompt(
+        value: "dismissed" | "installed" | undefined,
+    ) {
+        await this.globalState.update("explorerIntegrationPrompt", value);
+    }
 }
