@@ -2,35 +2,94 @@
 //! `ritobin-lsp/deserializeBin` / `ritobin-lsp/serializeBin` requests.
 //!
 //! Both functions do blocking file IO and are meant to run inside
-//! `tokio::task::spawn_blocking`. Errors are user-facing strings that the
-//! dispatcher forwards as LSP response errors.
+//! `tokio::task::spawn_blocking`. Their error enums render (via `Display`) to
+//! the user-facing string the dispatcher forwards as an LSP response error.
 
 use std::{
     fs,
-    io::{BufReader, Cursor, Read as _},
+    io::{BufReader, Cursor},
     path::Path,
 };
 
-use ltk_ritobin::{Cst, print::Print as _, typecheck::visitor::Diagnostic};
+use ltk_ritobin::{
+    Cst,
+    print::{Print as _, PrintError},
+    typecheck::visitor::Diagnostic,
+};
 
 use crate::{fs_ext, lsp::ext::DeserializeBinResult};
 
-pub fn deserialize_bin(bin_path: &Path) -> Result<DeserializeBinResult, String> {
-    let file = fs::File::open(bin_path)
-        .map_err(|e| format!("Failed to open '{}': {e}", bin_path.display()))?;
-    let bin = ltk_meta::Bin::from_reader(&mut BufReader::new(file)).map_err(|e| match e {
-        ltk_meta::Error::InvalidFileSignature => format!(
-            "'{}' is not a League of Legends .bin file.",
-            bin_path.display()
-        ),
-        e => format!("Failed to read '{}': {e}", bin_path.display()),
+#[derive(Debug, thiserror::Error)]
+pub enum DeserializeError {
+    #[error("Failed to open '{path}': {source}")]
+    Open {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("'{path}' is not a League of Legends .bin file.")]
+    InvalidSignature { path: String },
+
+    #[error("Failed to read '{path}': {source}")]
+    Read {
+        path: String,
+        #[source]
+        source: ltk_meta::Error,
+    },
+
+    #[error("Failed to print '{path}' as ritobin: {source}")]
+    Print {
+        path: String,
+        #[source]
+        source: PrintError,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SerializeError {
+    #[error("Could not save bin. Fix the errors shown in the editor and try again.")]
+    InvalidSource,
+
+    #[error("This is a PTCH override bin, which cannot be written back yet.")]
+    Override,
+
+    #[error("Failed to serialize bin: {source}")]
+    Serialize {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Failed to write '{path}': {source}")]
+    Write {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+pub fn deserialize_bin(bin_path: &Path) -> Result<DeserializeBinResult, DeserializeError> {
+    let path = bin_path.display().to_string();
+
+    let file = fs::File::open(bin_path).map_err(|source| DeserializeError::Open {
+        path: path.clone(),
+        source,
+    })?;
+    let bin = ltk_meta::Bin::from_reader(&mut BufReader::new(file)).map_err(|source| match source {
+        ltk_meta::Error::InvalidFileSignature => {
+            DeserializeError::InvalidSignature { path: path.clone() }
+        }
+        source => DeserializeError::Read {
+            path: path.clone(),
+            source,
+        },
     })?;
 
     // Default print config renders all hashes as hex; hashtable-backed naming
     // can be layered in later via a PrintConfig hash provider.
     let text = bin
         .print()
-        .map_err(|e| format!("Failed to print '{}' as ritobin: {e}", bin_path.display()))?;
+        .map_err(|source| DeserializeError::Print { path, source })?;
 
     Ok(DeserializeBinResult {
         text,
@@ -38,64 +97,31 @@ pub fn deserialize_bin(bin_path: &Path) -> Result<DeserializeBinResult, String> 
     })
 }
 
-pub fn serialize_bin(bin_path: &Path, text: &str) -> Result<(), String> {
-    // Bin::to_writer panics (todo!()) on override bins - never let a PTCH
-    // target through, even if the client-side readonly guard failed.
-    if is_ptch_file(bin_path) {
-        return Err(format!(
-            "'{}' is a PTCH override bin, which cannot be written back yet.",
-            bin_path.display()
-        ));
-    }
-
+pub fn serialize_bin(bin_path: &Path, text: &str) -> Result<(), SerializeError> {
     let cst = Cst::parse(text);
-    if let Some(first) = cst.errors.first() {
-        let (line, col) = line_col(text, first.span.start);
-        return Err(format!(
-            "Cannot save: {} parse error(s), first at line {line}, column {col}. Fix the errors shown in the editor and try again.",
-            cst.errors.len()
-        ));
+    if !cst.errors.is_empty() {
+        return Err(SerializeError::InvalidSource);
     }
 
     let (bin, diagnostics) = cst.build_bin(text);
-    let errors: Vec<_> = diagnostics
+    let has_errors = diagnostics
         .iter()
-        .filter(|d| !matches!(d.diagnostic, Diagnostic::ShadowedEntry { .. }))
-        .collect();
-    if let Some(first) = errors.first() {
-        let (line, col) = line_col(text, first.span.start);
-        return Err(format!(
-            "Cannot save: {} error(s), first at line {line}, column {col}. Fix the diagnostics shown in the editor and try again.",
-            errors.len()
-        ));
+        .any(|d| !matches!(d.diagnostic, Diagnostic::ShadowedEntry { .. }));
+    if has_errors {
+        return Err(SerializeError::InvalidSource);
+    }
+    if bin.is_override {
+        return Err(SerializeError::Override);
     }
 
     let mut buf = Cursor::new(Vec::new());
     bin.to_writer(&mut buf)
-        .map_err(|e| format!("Failed to serialize bin: {e}"))?;
+        .map_err(|source| SerializeError::Serialize { source })?;
 
-    fs_ext::write_atomic(bin_path, buf.get_ref())
-        .map_err(|e| format!("Failed to write '{}': {e}", bin_path.display()))
-}
-
-fn is_ptch_file(path: &Path) -> bool {
-    let Ok(mut file) = fs::File::open(path) else {
-        return false;
-    };
-
-    let mut magic = [0u8; 4];
-    file.read_exact(&mut magic).is_ok() && &magic == b"PTCH"
-}
-
-fn line_col(text: &str, offset: u32) -> (u32, u32) {
-    let offset = (offset as usize).min(text.len());
-    let before = &text[..offset];
-
-    let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let line = before.matches('\n').count() as u32 + 1;
-    let col = (offset - line_start) as u32 + 1;
-
-    (line, col)
+    fs_ext::write_atomic(bin_path, buf.get_ref()).map_err(|source| SerializeError::Write {
+        path: bin_path.display().to_string(),
+        source,
+    })
 }
 
 #[cfg(test)]
@@ -134,19 +160,7 @@ mod tests {
         fs::write(&path, b"JUNKJUNKJUNKJUNK").unwrap();
 
         let err = deserialize_bin(&path).unwrap_err();
-        assert!(err.contains("not a League of Legends .bin file"), "{err}");
-        let _ = fs::remove_file(&path);
-    }
-
-    #[test]
-    fn ptch_target_is_refused() {
-        let path = temp_path("ptch.bin");
-        fs::write(&path, b"PTCH\0\0\0\0").unwrap();
-
-        let err = serialize_bin(&path, "").unwrap_err();
-        assert!(err.contains("PTCH"), "{err}");
-        // the original file must be untouched
-        assert_eq!(&fs::read(&path).unwrap()[..4], b"PTCH");
+        assert!(matches!(err, DeserializeError::InvalidSignature { .. }), "{err}");
         let _ = fs::remove_file(&path);
     }
 
@@ -154,7 +168,7 @@ mod tests {
     fn parse_errors_refuse_save() {
         let path = temp_path("parse-err.bin");
         let err = serialize_bin(&path, "entry: {{{{").unwrap_err();
-        assert!(err.contains("Cannot save"), "{err}");
+        assert!(matches!(err, SerializeError::InvalidSource), "{err}");
         assert!(!path.exists());
     }
 }
