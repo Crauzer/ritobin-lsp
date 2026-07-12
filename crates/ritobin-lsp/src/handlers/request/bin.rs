@@ -19,12 +19,12 @@ use crate::{
 
 pub fn handle_deserialize_bin(server: &Arc<Server>, id: RequestId, params: DeserializeBinParams) {
     server.respond_blocking(id, DeserializeBin::METHOD, move || {
-        bin_io::deserialize_bin(Path::new(&params.bin_path))
+        bin_io::deserialize_bin(Path::new(&params.bin_path)).map_err(|e| e.to_string())
     });
 }
 
 pub fn handle_serialize_bin(server: &Arc<Server>, id: RequestId, params: SerializeBinParams) {
     server.respond_blocking(id, SerializeBin::METHOD, move || {
-        bin_io::serialize_bin(Path::new(&params.bin_path), &params.text)
+        bin_io::serialize_bin(Path::new(&params.bin_path), &params.text).map_err(|e| e.to_string())
     });
 }
