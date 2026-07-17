@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.11](https://github.com/alanpq/ritobin-lsp/compare/ritobin-lsp-vs-v0.0.10...ritobin-lsp-vs-v0.0.11) (2026-07-17)
+
+
+### Features
+
+* add .ritobin extension association ([f821dbe](https://github.com/alanpq/ritobin-lsp/commit/f821dbe71a83cfce57f42bf1b968fde9f95bc3b8))
+* add explorer integration and vfs scheme for .bin files ([9217b8e](https://github.com/alanpq/ritobin-lsp/commit/9217b8e06619d0aa8fabd0140dff0f69d5b9e05e))
+* implement read-only opening of .bin ([7d1fb1a](https://github.com/alanpq/ritobin-lsp/commit/7d1fb1a72128bde3e306002d36b2a34b38290aed))
+* sync LSP version with vsc package ([248c5e1](https://github.com/alanpq/ritobin-lsp/commit/248c5e180f28a693c8b14e0d5c333605f57f5025))
+
+* (*ritobin*): fmt CustomSpan ([3a8dc49](https://github.com/alanpq/ritobin-lsp/commit/3a8dc4936213fca7525ea0b0b9f455f007d5b95f))
+* (*ritobin*): human readable NotEnoughItems ([c3f4f00](https://github.com/alanpq/ritobin-lsp/commit/c3f4f00e091056d63ed600687dfaba25e3773354))
+* (*ritobin*): initial linter w/ unknown field lint ([350e24f](https://github.com/alanpq/ritobin-lsp/commit/350e24f12d11df8897e90a6e8b0f6369263b6833))
+* (*ritobin*): switch to mimir, hash auto update ([8e453ad](https://github.com/alanpq/ritobin-lsp/commit/8e453ad8449170823fb376bb86967eb8c3bdecb1))
+
 ## [0.0.10](https://github.com/alanpq/ritobin-lsp/compare/ritobin-lsp-vs-v0.0.9...ritobin-lsp-vs-v0.0.10) (2026-07-10)
 
 
