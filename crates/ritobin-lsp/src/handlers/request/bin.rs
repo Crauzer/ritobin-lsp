@@ -18,8 +18,14 @@ use crate::{
 };
 
 pub fn handle_deserialize_bin(server: &Arc<Server>, id: RequestId, params: DeserializeBinParams) {
+    let hashes = server
+        .hashes
+        .as_ref()
+        .map(|h| h.bin_provider())
+        .unwrap_or_default();
+
     server.respond_blocking(id, DeserializeBin::METHOD, move || {
-        bin_io::deserialize_bin(Path::new(&params.bin_path)).map_err(|e| e.to_string())
+        bin_io::deserialize_bin(Path::new(&params.bin_path), hashes).map_err(|e| e.to_string())
     });
 }
 

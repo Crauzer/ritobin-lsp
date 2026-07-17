@@ -3,8 +3,10 @@ use std::{collections::HashMap, sync::Arc};
 use arc_swap::ArcSwap;
 use lsp_server::{Connection, Message, RequestId, Response};
 use lsp_types::Url;
+use ltk_hash::BinHash;
 use ltk_hashdb::HashDb;
 use ltk_mimir_cache::{HashStore, Table, UpdateOptions, UpdateOutcome};
+use ltk_ritobin::HashProvider;
 use rustc_hash::FxHashMap;
 use tokio::sync::RwLock;
 
@@ -16,7 +18,41 @@ pub struct Hashes {
     tables: Arc<ArcSwap<HashMap<Table, Arc<HashDb>>>>,
 }
 
+#[derive(Clone, Default)]
+pub struct BinHashProvider {
+    entries: Option<Arc<HashDb>>,
+    fields: Option<Arc<HashDb>>,
+    hashes: Option<Arc<HashDb>>,
+    types: Option<Arc<HashDb>>,
+}
+
+impl HashProvider for BinHashProvider {
+    fn lookup_entry(&self, hash: BinHash) -> Option<std::borrow::Cow<'_, str>> {
+        self.entries.as_ref()?.get((*hash).into())
+    }
+
+    fn lookup_field(&self, hash: BinHash) -> Option<std::borrow::Cow<'_, str>> {
+        self.fields.as_ref()?.get((*hash).into())
+    }
+
+    fn lookup_hash(&self, hash: BinHash) -> Option<std::borrow::Cow<'_, str>> {
+        self.hashes.as_ref()?.get((*hash).into())
+    }
+
+    fn lookup_type(&self, hash: BinHash) -> Option<std::borrow::Cow<'_, str>> {
+        self.types.as_ref()?.get((*hash).into())
+    }
+}
+
 impl Hashes {
+    pub fn bin_provider(&self) -> BinHashProvider {
+        BinHashProvider {
+            entries: self.table(Table::BinEntries),
+            fields: self.table(Table::BinFields),
+            hashes: self.table(Table::BinHashes),
+            types: self.table(Table::BinTypes),
+        }
+    }
     pub async fn update(
         &self,
     ) -> Result<UpdateOutcome, ltk_mimir_cache::UpdateError<reqwest::Error>> {

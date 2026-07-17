@@ -13,11 +13,15 @@ use std::{
 
 use ltk_ritobin::{
     Cst,
-    print::{Print as _, PrintError},
+    print::{Print as _, PrintConfig, PrintError},
     typecheck::diagnostics::Diagnostic,
 };
 
-use crate::{fs_ext, lsp::ext::DeserializeBinResult};
+use crate::{
+    fs_ext,
+    lsp::ext::DeserializeBinResult,
+    server::{BinHashProvider, Hashes},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DeserializeError {
@@ -68,7 +72,10 @@ pub enum SerializeError {
     },
 }
 
-pub fn deserialize_bin(bin_path: &Path) -> Result<DeserializeBinResult, DeserializeError> {
+pub fn deserialize_bin(
+    bin_path: &Path,
+    hashes: BinHashProvider,
+) -> Result<DeserializeBinResult, DeserializeError> {
     let path = bin_path.display().to_string();
 
     let file = fs::File::open(bin_path).map_err(|source| DeserializeError::Open {
@@ -89,7 +96,7 @@ pub fn deserialize_bin(bin_path: &Path) -> Result<DeserializeBinResult, Deserial
     // Default print config renders all hashes as hex; hashtable-backed naming
     // can be layered in later via a PrintConfig hash provider.
     let text = bin
-        .print()
+        .print_with_config(PrintConfig::default().with_hashes(hashes))
         .map_err(|source| DeserializeError::Print { path, source })?;
 
     Ok(DeserializeBinResult {
@@ -144,7 +151,7 @@ mod tests {
         bin.to_writer(&mut buf).unwrap();
         fs::write(&path, buf.get_ref()).unwrap();
 
-        let deserialized = deserialize_bin(&path).unwrap();
+        let deserialized = deserialize_bin(&path, BinHashProvider::default()).unwrap();
         assert!(!deserialized.is_override);
         serialize_bin(&path, &deserialized.text).unwrap();
 
@@ -160,7 +167,7 @@ mod tests {
         let path = temp_path("bad-magic.bin");
         fs::write(&path, b"JUNKJUNKJUNKJUNK").unwrap();
 
-        let err = deserialize_bin(&path).unwrap_err();
+        let err = deserialize_bin(&path, BinHashProvider::default()).unwrap_err();
         assert!(
             matches!(err, DeserializeError::InvalidSignature { .. }),
             "{err}"
