@@ -10,15 +10,15 @@ import { guard, toast } from "./ide_utils";
  * module wires the one-time "opened read-only" nudge plus the two escape
  * hatches it advertises:
  *
- *   - Save as .ritobin  - the encouraged path for continued work: writes the
- *     deserialized text out to a real `.ritobin` file, fully decoupled from
+ *   - Save as .rito  - the encouraged path for continued work: writes the
+ *     deserialized text out to a real `.rito` file, fully decoupled from
  *     the binary.
  *   - Enable write-back - opt in to serializing this document back into the
  *     `.bin`, for this open document only. Reopening the file is read-only
  *     again.
  */
 
-const SAVE_AS = "Save as .ritobin…";
+const SAVE_AS = "Save as .rito…";
 const WRITE_BACK = "Enable write-back";
 const DISMISS = "Don't show again";
 
@@ -34,7 +34,7 @@ export function registerBinReadonlyFlow(ctx: Ctx, binFs: RitobinBinFs): void {
   ctx.pushExtCleanup(
     vscode.commands.registerCommand(
       "ritobin-lsp.saveBinAsRitobin",
-      guard("Save .bin as Ritobin", (uri?: vscode.Uri) =>
+      guard("Save .bin as ritobin", (uri?: vscode.Uri) =>
         saveAsRitobin(resolveBinDoc(uri)),
       ),
     ),
@@ -106,7 +106,7 @@ async function saveAsRitobin(
 
   const binUri = virtualToBin(doc.uri);
   const defaultUri = binUri.with({
-    path: binUri.path.replace(/\.bin$/i, "") + ".ritobin",
+    path: binUri.path.replace(/\.bin$/i, "") + ".rito",
   });
   const target = await vscode.window.showSaveDialog({
     title: "Save as Ritobin",
@@ -142,9 +142,9 @@ async function maybePromptReadonly(
     ? [SAVE_AS, DISMISS]
     : [SAVE_AS, WRITE_BACK, DISMISS];
   const message = override
-    ? "This is a PTCH override BIN. Save it as .ritobin to keep working on it."
-    : "This .bin opened read-only. Save it as .ritobin if you want to continue editing it, " +
-      "or enable write-back to save changes.";
+    ? "This is a PTCH override BIN. Save it as .rito to keep working on it."
+    : "This .bin opened read-only. Save it as .rito if you want to continue editing it, " +
+    "or enable write-back to save changes.";
 
   const choice = await vscode.window.showInformationMessage(
     message,

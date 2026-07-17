@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import type { Ctx } from "./ctx";
 import { reportError, tryStat } from "./ide_utils";
 import * as ra from "./lsp_ext";
+import { log } from "./util";
 
 export const BIN_SCHEME = "ritobin-bin";
 
@@ -18,10 +19,20 @@ export function binToVirtual(bin: vscode.Uri): vscode.Uri {
 }
 
 export function virtualToBin(virtual: vscode.Uri): vscode.Uri {
+  log.debug({ path: virtual.path });
   return virtual.with({
     scheme: "file",
-    path: virtual.path.slice(0, -VIRTUAL_SUFFIX.length),
+    path: virtual.path.replace(/\.rito$/, ""),
   });
+}
+
+/**
+ * Whether `uri` is the virtual ritobin-text document itself, as opposed to an
+ * ancestor folder on the real filesystem that VS Code is resolving on the
+ * way to it (e.g. while browsing a save dialog).
+ */
+function isVirtualBinUri(uri: vscode.Uri): boolean {
+  return uri.path.endsWith(VIRTUAL_SUFFIX);
 }
 
 /**
@@ -30,8 +41,7 @@ export function virtualToBin(virtual: vscode.Uri): vscode.Uri {
  * disk.
  */
 export class RitobinBinDecorationProvider
-  implements vscode.FileDecorationProvider
-{
+  implements vscode.FileDecorationProvider {
   provideFileDecoration(
     uri: vscode.Uri,
   ): vscode.ProviderResult<vscode.FileDecoration> {
@@ -41,7 +51,7 @@ export class RitobinBinDecorationProvider
 
     return new vscode.FileDecoration(
       "⇄",
-      "Read-only League .bin - save as .ritobin, or enable write-back to convert changes back into the binary",
+      "Read-only League .bin - save as .rito, or enable write-back to convert changes back into the binary",
       new vscode.ThemeColor("charts.blue"),
     );
   }
@@ -78,7 +88,7 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.emitter.event;
 
-  constructor(private readonly ctx: Ctx) {}
+  constructor(private readonly ctx: Ctx) { }
 
   /**
    * Evict the cache and forget any write-back opt-in once the virtual
@@ -118,7 +128,6 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
     if (cached) {
       return cached;
     }
-
     const binUri = virtualToBin(uri);
     try {
       const client = await this.ctx.ensureClientReady();
@@ -144,6 +153,10 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
   }
 
   async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+    if (!isVirtualBinUri(uri)) {
+      return vscode.workspace.fs.stat(virtualToBin(uri));
+    }
+
     const entry = await this.ensureLoaded(uri);
     // Read-only by default; PTCH override bins can never be written back.
     // Only documents the user explicitly opted into via `enableWriteBack`
@@ -196,11 +209,28 @@ export class RitobinBinFs implements vscode.FileSystemProvider {
   }
 
   watch(_uri: vscode.Uri): vscode.Disposable {
-    return new vscode.Disposable(() => {});
+    return new vscode.Disposable(() => { });
   }
 
-  readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-    throw vscode.FileSystemError.NoPermissions(uri);
+  async readDirectory(
+    uri: vscode.Uri,
+  ): Promise<[string, vscode.FileType][]> {
+    if (isVirtualBinUri(uri)) {
+      throw vscode.FileSystemError.NoPermissions(uri);
+    }
+
+    // An ancestor folder (see `stat`) - mirror the real directory listing so
+    // browsing dialogs can walk through it, presenting `.bin` entries under
+    // their virtual `.rito` name so they resolve back through this provider.
+    const entries = await vscode.workspace.fs.readDirectory(
+      virtualToBin(uri),
+    );
+    return entries.map(
+      ([name, type]): [string, vscode.FileType] =>
+        type === vscode.FileType.File && name.toLowerCase().endsWith(".bin")
+          ? [name + VIRTUAL_SUFFIX, type]
+          : [name, type],
+    );
   }
 
   createDirectory(uri: vscode.Uri): void {
