@@ -32,7 +32,7 @@ import type { RustAnalyzerExtensionApi } from "./main";
 // only those are in use. We use "Empty" to represent these scenarios
 // (r-a still somewhat works with Live Share, because commands are tunneled to the host)
 
-const BUNDLED_LSP_VERSION = "0.1.8"; //#[__auto(VSCODE_LSP_BUNDLED_VERSION)]
+const BUNDLED_LSP_VERSION = "0.1.9"; //#[__auto(VSCODE_LSP_BUNDLED_VERSION)]
 
 export type Workspace =
   | { kind: "Empty" }
@@ -347,7 +347,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
     log.info("Disposing language client");
     this.updateCommands("disable");
     // we give the server 100ms to stop gracefully
-    await this.client?.stop(100).catch((_) => {});
+    await this.client?.stop(100).catch((_) => { });
     await this.disposeClient();
   }
 
@@ -473,13 +473,13 @@ export class Ctx implements RustAnalyzerExtensionApi {
     const toggleCheckOnSave = this.config.checkOnSave ? "Disable" : "Enable";
     statusBar.tooltip.appendMarkdown(
       `[Extension Info](command:ritobin-lsp.serverVersion "Show version and server binary info"): Version ${this.version}, Server Version ${this._serverVersion}\n\n` +
-        `---\n\n` +
-        `[$(terminal) Open Logs](command:ritobin-lsp.openLogs "Open the server logs")\n\n` +
-        `[$(settings) ${toggleCheckOnSave} Check on Save](command:ritobin-lsp.toggleCheckOnSave "Temporarily ${toggleCheckOnSave.toLowerCase()} check on save functionality")\n\n` +
-        `[$(refresh) Reload Workspace](command:ritobin-lsp.reloadWorkspace "Reload and rediscover workspaces")\n\n` +
-        `[$(symbol-property) Rebuild Build Dependencies](command:ritobin-lsp.rebuildProcMacros "Rebuild build scripts and proc-macros")\n\n` +
-        `[$(stop-circle) Stop server](command:ritobin-lsp.stopServer "Stop the server")\n\n` +
-        `[$(debug-restart) Restart server](command:ritobin-lsp.restartServer "Restart the server")`,
+      `---\n\n` +
+      `[$(terminal) Open Logs](command:ritobin-lsp.openLogs "Open the server logs")\n\n` +
+      `[$(settings) ${toggleCheckOnSave} Check on Save](command:ritobin-lsp.toggleCheckOnSave "Temporarily ${toggleCheckOnSave.toLowerCase()} check on save functionality")\n\n` +
+      `[$(refresh) Reload Workspace](command:ritobin-lsp.reloadWorkspace "Reload and rediscover workspaces")\n\n` +
+      `[$(symbol-property) Rebuild Build Dependencies](command:ritobin-lsp.rebuildProcMacros "Rebuild build scripts and proc-macros")\n\n` +
+      `[$(stop-circle) Stop server](command:ritobin-lsp.stopServer "Stop the server")\n\n` +
+      `[$(debug-restart) Restart server](command:ritobin-lsp.restartServer "Restart the server")`,
     );
     if (!status.quiescent) icon = "$(loading~spin) ";
     statusBar.text = `${icon}ritobin-lsp`;
