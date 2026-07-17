@@ -32,7 +32,7 @@ import type { RustAnalyzerExtensionApi } from "./main";
 // only those are in use. We use "Empty" to represent these scenarios
 // (r-a still somewhat works with Live Share, because commands are tunneled to the host)
 
-const BUNDLED_LSP_VERSION = "0.1.9"; //#[__auto(VSCODE_LSP_BUNDLED_VERSION)]
+const BUNDLED_LSP_VERSION = ""; //#[__auto(VSCODE_LSP_BUNDLED_VERSION)]
 
 export type Workspace =
   | { kind: "Empty" }
@@ -208,7 +208,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
           this._serverVersion = data
             .slice(data.startsWith(prefix) ? prefix.length : 0)
             .trim();
-          if (this._serverVersion != BUNDLED_LSP_VERSION) {
+          if (BUNDLED_LSP_VERSION && this._serverVersion != BUNDLED_LSP_VERSION) {
             vscode.window.showWarningMessage(
               `The running version of ritobin-lsp (${this._serverVersion}), is not what this extension expected to be bundled with (${BUNDLED_LSP_VERSION}). If you experience issues (likely with large version differences), please update this extension.`,
             );

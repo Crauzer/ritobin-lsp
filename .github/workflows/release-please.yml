@@ -175,6 +175,9 @@ jobs:
         with:
           node-version: 22.x
       - run: cd editors/code; npm ci
+      - name: Sync bundled LSP version
+        if: needs.release-please.outputs.vsc_created && matrix.toolchain == 'stable'
+        run: cd editors/code; npm run sync-lsp-version
       - name: Package vscode extension
         if: needs.release-please.outputs.vsc_created && matrix.toolchain == 'stable'
         run: |

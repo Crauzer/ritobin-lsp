@@ -13,15 +13,14 @@
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const extensionDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const repoRoot = path.dirname(path.dirname(extensionDir));
+import {
+  extensionDir,
+  repoRoot,
+  ritobinLspCrateVersion,
+  patchBundledVersion,
+} from "./lsp-version.mjs";
 
 const syncLspVersion = process.argv.includes("--sync-lsp-version");
-
-// Trailing comment on the BUNDLED_LSP_VERSION line in src/ctx.ts.
-const BUNDLED_VERSION_MARKER = "//#[__auto(VSCODE_LSP_BUNDLED_VERSION)]";
 
 // Platforms the extension actually ships for (see release-please.yml).
 const SUPPORTED_VSIX_TARGETS = new Set([
@@ -32,20 +31,6 @@ const SUPPORTED_VSIX_TARGETS = new Set([
   "darwin-x64",
   "darwin-arm64",
 ]);
-
-/** Reads the `version` of the `ritobin-lsp` crate from its Cargo.toml. */
-function ritobinLspCrateVersion() {
-  const manifest = path.join(repoRoot, "crates", "ritobin-lsp", "Cargo.toml");
-
-  const match = fs
-    .readFileSync(manifest, "utf8")
-    .match(/^version\s*=\s*"([^"]+)"/m);
-  if (!match) {
-    throw new Error(`Could not find a version in ${manifest}`);
-  }
-
-  return match[1];
-}
 
 function getExeExtension() {
   return process.platform === "win32" ? ".exe" : "";
@@ -62,37 +47,7 @@ function platformGuard() {
   }
 }
 
-/** Sets BUNDLED_LSP_VERSION in src/ctx.ts, returning a restore callback. */
-function patchBundledVersion(version) {
-  const ctxPath = path.join(extensionDir, "src", "ctx.ts");
-  const original = fs.readFileSync(ctxPath, "utf8");
-
-  const lines = original.split("\n");
-  const idx = lines.findIndex((line) => line.includes(BUNDLED_VERSION_MARKER));
-  if (idx === -1) {
-    throw new Error(
-      `Could not find the ${BUNDLED_VERSION_MARKER} marker in ${ctxPath}`,
-    );
-  }
-
-  const patched = lines.slice();
-  patched[idx] =
-    `const BUNDLED_LSP_VERSION = "${version}"; ${BUNDLED_VERSION_MARKER}`;
-
-  const next = patched.join("\n");
-  if (next === original) {
-    console.log(`ctx.ts BUNDLED_LSP_VERSION already ${version}`);
-
-    return () => {};
-  }
-
-  fs.writeFileSync(ctxPath, next);
-  console.log(`Patched ctx.ts BUNDLED_LSP_VERSION to ${version}`);
-
-  return () => fs.writeFileSync(ctxPath, original);
-}
-
-function package() {
+function packageExtension() {
   run(
     process.execPath,
     [vsce, "package", "--target", vsixTarget, "--out", outFile],
@@ -137,6 +92,8 @@ if (syncLspVersion) {
   const restoreVersion = patchBundledVersion(ritobinLspCrateVersion());
   process.on("exit", restoreVersion);
 }
+
+packageExtension();
 
 console.log(`\nDone: ${path.join(extensionDir, outFile)}`);
 console.log(`Install with: code --install-extension ${outFile}`);
