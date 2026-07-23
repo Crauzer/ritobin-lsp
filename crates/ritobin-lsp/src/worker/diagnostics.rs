@@ -143,36 +143,41 @@ impl Worker {
         cst: &Cst,
         bin_errors: impl IntoIterator<Item = DiagnosticWithSpan>,
     ) -> anyhow::Result<()> {
-        let mut diagnostics = bin_errors
-            .into_iter()
-            .map(|d| self.convert_diagnostic(d))
-            .update(|d| {
-                d.source.replace("ritobin-lsp".into());
+        let mut diagnostics = cst
+            .errors
+            .iter()
+            .map(|err| LspDiag {
+                range: self.document.line_numbers.from_span(err.span),
+                severity: Some(DiagnosticSeverity::ERROR),
+                code: None,
+                code_description: None,
+                source: Some("ritobin-lsp".into()),
+                message: match err.kind {
+                    ErrorKind::Expected { expected, got } => {
+                        format!("Missing {expected} for {} - got {got}", err.tree)
+                    }
+                    ErrorKind::Unexpected { token } => {
+                        format!("Unexpected {token}, expected {}", err.tree)
+                    }
+                    kind => format!("{kind:#?}"),
+                },
+                related_information: None,
+                tags: None,
+                data: None,
             })
             .collect_vec();
 
         // let mut parse_errors = FlatErrors::new();
         // cst.walk(&mut parse_errors);
 
-        diagnostics.extend(cst.errors.iter().map(|err| LspDiag {
-            range: self.document.line_numbers.from_span(err.span),
-            severity: Some(DiagnosticSeverity::ERROR),
-            code: None,
-            code_description: None,
-            source: Some("ritobin-lsp".into()),
-            message: match err.kind {
-                ErrorKind::Expected { expected, got } => {
-                    format!("Missing {expected} for {} - got {got}", err.tree)
-                }
-                ErrorKind::Unexpected { token } => {
-                    format!("Unexpected {token}, expected {}", err.tree)
-                }
-                kind => format!("{kind:#?}"),
-            },
-            related_information: None,
-            tags: None,
-            data: None,
-        }));
+        diagnostics.extend(
+            bin_errors
+                .into_iter()
+                .map(|d| self.convert_diagnostic(d))
+                .update(|d| {
+                    d.source.replace("ritobin-lsp".into());
+                }),
+        );
 
         let classes = self.server.meta.classes.read();
         let mut linter = Linter::new(&self.document, &classes);
@@ -185,7 +190,14 @@ impl Worker {
                 .map(|l| l.into_lsp_diagnostic(&self.document)),
         );
 
-        diagnostics.truncate(1000);
+        diagnostics.truncate(
+            self.server
+                .config
+                .initialization_options
+                .as_ref()
+                .and_then(|opt| opt.diagnostic_limit)
+                .unwrap_or(1000),
+        );
 
         let params = PublishDiagnosticsParams {
             uri: self.document.uri.clone(),

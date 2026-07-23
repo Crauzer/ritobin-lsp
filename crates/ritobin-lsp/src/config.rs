@@ -71,6 +71,7 @@ pub struct InitOptions {
     pub hash_path: Option<PathBuf>,
     #[serde(deserialize_with = "empty_string_as_none")]
     pub meta_dump_path: Option<PathBuf>,
+    pub diagnostic_limit: Option<usize>,
     #[serde(flatten)]
     pub other: HashMap<String, serde_json::Value>,
 }
