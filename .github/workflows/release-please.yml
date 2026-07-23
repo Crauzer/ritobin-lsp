@@ -193,6 +193,12 @@ jobs:
           tag: ${{ needs.release-please.outputs.vsc_tag_name }}
           file: "*.vsix"
           overwrite: true
+      - name: Upload vsix artifact
+        uses: actions/upload-artifact@v4
+        if: needs.release-please.outputs.vsc_created && matrix.toolchain == 'stable'
+        with:
+          name: vsix-${{ matrix.platform.vsix_target }}
+          path: "*.vsix"
       - name: Package as archive
         if: needs.release-please.outputs.rust_created && matrix.toolchain == 'stable'
         shell: bash
@@ -212,3 +218,37 @@ jobs:
           tag: ${{ needs.release-please.outputs.rust_tag_name }}
           file: ${{ matrix.platform.name }}
           overwrite: true
+
+  vscode-marketplace-publish:
+    name: Publish vscode extension to marketplaces
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    needs:
+      - release-please
+      - rust-packaging
+    if: needs.release-please.outputs.vsc_created
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - run: cd editors/code; npm ci
+      - name: Download packaged vsix files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: vsix
+          merge-multiple: true
+      - name: Publish to Visual Studio Marketplace
+        working-directory: editors/code
+        run: npx vsce publish --packagePath ${{ github.workspace }}/vsix/*.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX Registry
+        working-directory: editors/code
+        run: npx ovsx publish --packagePath ${{ github.workspace }}/vsix/*.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
