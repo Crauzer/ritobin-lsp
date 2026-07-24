@@ -6,6 +6,10 @@ ritobin-lsp is a language server that provides IDE functionality for editing [ri
 
 ## VS Code
 
+The extension is available on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=alanpq.ritobin-lsp-vs), and the Open VSX Registry. You can search for it from the extensions pane in VS Code.
+
+### Manual
+
 1. Download the latest `.vsix` from the [releases page](https://github.com/alanpq/ritobin-lsp/releases). Make sure to pick the architecture that matches your OS:
     - `win32-arm64`/`win32-x64`: Windows ARM / x86 64 bit
     - `darwin-arm64`/`darwin-x64`: MacOS M1 / Intel
