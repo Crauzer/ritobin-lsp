@@ -63,7 +63,7 @@ impl Visitor for PathFinder {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Scope {
     Class { class: BinHash },
     Container { class: BinHash, property: BinHash },
@@ -79,7 +79,6 @@ enum Region {
 fn classify(cst: &Cst, text: &str, path: &[NodeId], offset: u32) -> Option<CursorContext> {
     let mut scope = None;
     let mut scope_idx = 0;
-
     for i in 1..path.len() {
         let parent = cst.node(path[i - 1])?;
         let next = match cst.node(path[i])?.kind {
@@ -109,7 +108,7 @@ fn classify(cst: &Cst, text: &str, path: &[NodeId], offset: u32) -> Option<Curso
 
     let entry = path[scope_idx..].iter().rev().find_map(|&id| {
         let node = cst.node(id)?;
-        (node.kind == TreeKind::Entry).then_some(node)
+        matches!(node.kind, TreeKind::Entry | TreeKind::EntryTerminator).then_some(node)
     });
 
     match (scope?, entry) {
@@ -144,19 +143,24 @@ fn owning_entry(cst: &Cst, text: &str, path: &[NodeId], block_idx: usize) -> Opt
 }
 
 fn region(cst: &Cst, entry: &Node, offset: u32) -> Region {
-    let (mut colon, mut eq) = (None, None);
+    match entry.kind {
+        TreeKind::Entry => {
+            let (mut colon, mut eq) = (None, None);
 
-    for token in entry.children.get(cst).iter().filter_map(|c| c.token(cst)) {
-        match token.kind {
-            TokenKind::Colon => colon = colon.or(Some(token.span)),
-            TokenKind::Eq => eq = eq.or(Some(token.span)),
-            _ => {}
+            for token in entry.children.get(cst).iter().filter_map(|c| c.token(cst)) {
+                match token.kind {
+                    TokenKind::Colon => colon = colon.or(Some(token.span)),
+                    TokenKind::Eq => eq = eq.or(Some(token.span)),
+                    _ => {}
+                }
+            }
+
+            match (colon, eq) {
+                (_, Some(eq)) if offset >= eq.end => Region::Value,
+                (Some(colon), _) if offset > colon.start => Region::Type,
+                _ => Region::Key,
+            }
         }
-    }
-
-    match (colon, eq) {
-        (_, Some(eq)) if offset >= eq.end => Region::Value,
-        (Some(colon), _) if offset > colon.start => Region::Type,
         _ => Region::Key,
     }
 }
