@@ -92,10 +92,7 @@ fn a_container_block_has_no_innermost_class_but_keeps_the_enclosing_one() {
 }}
 "
     );
-    assert_eq!(
-        at(&src),
-        (ClassContextState::NotInScope, vec![h(SKIN)])
-    );
+    assert_eq!(at(&src), (ClassContextState::NotInScope, vec![h(SKIN)]));
 }
 
 #[test]

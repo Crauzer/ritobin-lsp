@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, InsertTextFormat,
-    MarkupContent, MarkupKind,
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation,
+    InsertTextFormat, MarkupContent, MarkupKind,
 };
 use ltk_hash::BinHash;
 use ltk_meta::PropertyKind;
@@ -90,7 +90,10 @@ pub fn property_items<'a>(
 }
 
 pub fn type_item(classes: &Classes, class: BinHash, property: BinHash) -> Option<CompletionItem> {
-    let ty = classes.find_property(class, property)?.rito_type().to_string();
+    let ty = classes
+        .find_property(class, property)?
+        .rito_type()
+        .to_string();
 
     Some(CompletionItem {
         insert_text: Some(ty.clone()),
@@ -112,16 +115,23 @@ fn class_items<'a>(
         .into_iter()
         .map(|(depth, hash)| {
             let name = name_of(hash);
-            (depth, hash, name.is_some(), name.unwrap_or_else(|| hash_label(hash).into()))
+            (
+                depth,
+                hash,
+                name.is_some(),
+                name.unwrap_or_else(|| hash_label(hash).into()),
+            )
         })
         .collect();
 
-    found.sort_unstable_by(|(a_depth, _, a_named, a_label), (b_depth, _, b_named, b_label)| {
-        a_depth
-            .cmp(b_depth)
-            .then_with(|| b_named.cmp(a_named))
-            .then_with(|| a_label.cmp(b_label))
-    });
+    found.sort_unstable_by(
+        |(a_depth, _, a_named, a_label), (b_depth, _, b_named, b_label)| {
+            a_depth
+                .cmp(b_depth)
+                .then_with(|| b_named.cmp(a_named))
+                .then_with(|| a_label.cmp(b_label))
+        },
+    );
 
     found
         .into_iter()

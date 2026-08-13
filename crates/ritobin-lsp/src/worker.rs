@@ -14,7 +14,10 @@ use ltk_ritobin::{
     print::PrintConfig,
     typecheck::diagnostics::DiagnosticWithSpan,
 };
-use ritobin_lsp::{cst_ext::CstExt as _, scope::{self, ClassContextExt as _, CstExt, TokenExt}};
+use ritobin_lsp::{
+    cst_ext::CstExt as _,
+    scope::{self, ClassContextExt as _, CstExt, TokenExt},
+};
 use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::{
@@ -229,7 +232,9 @@ impl Worker {
         };
 
         let offset = doc.line_numbers.from_position(pos);
-        let scope = data.cst.class_context_at(offset, &doc.text)
+        let scope = data
+            .cst
+            .class_context_at(offset, &doc.text)
             .current()
             .copied();
         let found_token = data
@@ -250,11 +255,9 @@ impl Worker {
                     value: match found_token {
                         Some((token, TreeKind::EntryKey)) => {
                             let txt = &doc.text.as_str()[token.span];
-                            match token.as_bin_hash(&doc.text)
-                                .and_then(|hash| {
-                                    Some((hash, classes.find_property(class_hash, hash)?))
-                                })
-                            {
+                            match token.as_bin_hash(&doc.text).and_then(|hash| {
+                                Some((hash, classes.find_property(class_hash, hash)?))
+                            }) {
                                 Some((hash, prop)) => {
                                     format!(
                                         r#"### [{class_name}](https://meta-wiki.leaguetoolkit.dev/classes/{}/)
@@ -309,15 +312,13 @@ impl Worker {
                             }
                             None => format!("*Unknown class `{class_name}`*"),
                         },
-                        _ => {
-                            match data.cst.find_node(offset) {
-                                Some((node, tok)) => {
-                                    let txt = &doc.text[tok.span.start as _..tok.span.end as _];
-                                    format!("{txt:?} | {node:?} | {:?}", tok.kind)
-                                }
-                                None => "".into(),
+                        _ => match data.cst.find_node(offset) {
+                            Some((node, tok)) => {
+                                let txt = &doc.text[tok.span.start as _..tok.span.end as _];
+                                format!("{txt:?} | {node:?} | {:?}", tok.kind)
                             }
-                        }
+                            None => "".into(),
+                        },
                     },
                 }
             }

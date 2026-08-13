@@ -11,21 +11,10 @@ use ritobin_lsp::scope::TokenExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorContext {
-    PropertyKey {
-        class: BinHash,
-    },
-    PropertyType {
-        class: BinHash,
-        property: BinHash,
-    },
-    PropertyValue {
-        class: BinHash,
-        property: BinHash,
-    },
-    ContainerItem {
-        class: BinHash,
-        property: BinHash,
-    },
+    PropertyKey { class: BinHash },
+    PropertyType { class: BinHash, property: BinHash },
+    PropertyValue { class: BinHash, property: BinHash },
+    ContainerItem { class: BinHash, property: BinHash },
 }
 
 pub fn resolve(cst: &Cst, text: &str, offset: u32) -> Option<CursorContext> {
@@ -56,7 +45,11 @@ impl Visitor for PathFinder {
         }
 
         self.stack.push(node);
-        if self.path.as_ref().is_none_or(|p| p.len() <= self.stack.len()) {
+        if self
+            .path
+            .as_ref()
+            .is_none_or(|p| p.len() <= self.stack.len())
+        {
             self.path = Some(self.stack.clone());
         }
         Visit::Continue
@@ -72,13 +65,8 @@ impl Visitor for PathFinder {
 
 #[derive(Clone, Copy)]
 enum Scope {
-    Class {
-        class: BinHash,
-    },
-    Container {
-        class: BinHash,
-        property: BinHash,
-    },
+    Class { class: BinHash },
+    Container { class: BinHash, property: BinHash },
     Opaque,
 }
 
@@ -140,12 +128,10 @@ fn classify(cst: &Cst, text: &str, path: &[NodeId], offset: u32) -> Option<Curso
         (Scope::Container { class, property }, None) => {
             Some(CursorContext::ContainerItem { class, property })
         }
-        (Scope::Container { class, property }, Some(entry)) => {
-            match region(cst, entry, offset) {
-                Region::Value => Some(CursorContext::ContainerItem { class, property }),
-                _ => None,
-            }
-        }
+        (Scope::Container { class, property }, Some(entry)) => match region(cst, entry, offset) {
+            Region::Value => Some(CursorContext::ContainerItem { class, property }),
+            _ => None,
+        },
         (Scope::Opaque, _) => None,
     }
 }
@@ -185,7 +171,12 @@ fn entry_key(cst: &Cst, text: &str, entry: &Node) -> Option<BinHash> {
 }
 
 fn class_hash(cst: &Cst, text: &str, class: &Node) -> Option<BinHash> {
-    class.children.get(cst).first()?.token(cst)?.as_bin_hash(text)
+    class
+        .children
+        .get(cst)
+        .first()?
+        .token(cst)?
+        .as_bin_hash(text)
 }
 
 #[cfg(test)]
